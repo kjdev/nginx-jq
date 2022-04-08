@@ -1,0 +1,25 @@
+
+ngx_addon_name=ngx_http_jq_module
+
+NGX_JQ_SRCS="$ngx_addon_dir/src/ngx_http_jq_module.c"
+NGX_JQ_DEPS=
+NGX_JQ_INCS=
+NGX_JQ_LIBS="-ljq"
+
+if [ $ngx_module_link = DYNAMIC ] ; then
+  ngx_module_name="ngx_http_jq_module"
+  ngx_module_srcs="$NGX_JQ_SRCS"
+  ngx_module_deps="$NGX_JQ_DEPS"
+  ngx_module_incs="$NGX_JQ_INCS"
+  ngx_module_libs="$NGX_JQ_LIBS"
+
+  . auto/module
+else
+  HTTP_MODULES="$HTTP_MODULES ngx_http_jq_module"
+  NGX_ADDON_SRCS="$NGX_ADDON_SRCS $NGX_JQ_SRCS"
+  NGX_ADDON_DEPS="$NGX_ADDON_DEPS $NGX_JQ_DEPS"
+  CORE_INCS="$CORE_INCS $NGX_JQ_INCS"
+  CORE_LIBS="$CORE_LIBS $NGX_JQ_LIBS"
+fi
+
+. auto/have
