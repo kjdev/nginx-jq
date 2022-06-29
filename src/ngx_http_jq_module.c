@@ -492,7 +492,7 @@ ngx_http_jq_handler(ngx_http_request_t *r)
   jq_set_error_cb(jq, ngx_http_jq_error_cb, NULL);
 
   if (jv_array_length(jv_copy(jscf->library_paths)) > 0) {
-    jq_set_attr(jq, jv_string("JQ_LIBRARY_PATH"), jscf->library_paths);
+    jq_set_attr(jq, jv_string("JQ_LIBRARY_PATH"), jv_copy(jscf->library_paths));
   }
 
   if (!jq_compile_args(jq,
