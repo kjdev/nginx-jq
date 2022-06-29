@@ -8,6 +8,7 @@
 
 typedef struct {
   jv json;
+  jv library_paths;
 } ngx_http_jq_srv_conf_t;
 
 typedef struct {
@@ -25,6 +26,7 @@ typedef struct {
 } ngx_http_jq_output_t;
 
 static char *ngx_http_jq_conf_set_json_file(ngx_conf_t *, ngx_command_t *, void *);
+static char *ngx_http_jq_conf_set_library_path(ngx_conf_t *, ngx_command_t *, void *);
 static char *ngx_http_jq_conf_set_filter(ngx_conf_t *, ngx_command_t *, void *);
 
 static void *ngx_http_jq_create_srv_conf(ngx_conf_t *);
@@ -40,6 +42,14 @@ static ngx_command_t ngx_http_jq_commands[] = {
     ngx_string("jq_json_file"),
     NGX_HTTP_SRV_CONF|NGX_CONF_TAKE1,
     ngx_http_jq_conf_set_json_file,
+    NGX_HTTP_SRV_CONF_OFFSET,
+    0,
+    NULL
+  },
+  {
+    ngx_string("jq_library_path"),
+    NGX_HTTP_SRV_CONF|NGX_CONF_TAKE1,
+    ngx_http_jq_conf_set_library_path,
     NGX_HTTP_SRV_CONF_OFFSET,
     0,
     NULL
@@ -143,6 +153,27 @@ ngx_http_jq_conf_set_json_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 }
 
 static char *
+ngx_http_jq_conf_set_library_path(ngx_conf_t *cf,
+                                  ngx_command_t *cmd, void *conf)
+{
+  ngx_http_jq_srv_conf_t *jscf;
+  ngx_str_t *value;
+
+  jscf = conf;
+
+  value = cf->args->elts;
+
+  if (value[1].len == 0) {
+    return "is empty";
+  }
+
+  jscf->library_paths = jv_array_append(jscf->library_paths,
+                                        jv_string((char *)value[1].data));
+
+  return NGX_CONF_OK;
+}
+
+static char *
 ngx_http_jq_conf_set_filter(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
   ngx_http_core_loc_conf_t *clcf;
@@ -177,6 +208,7 @@ ngx_http_jq_create_srv_conf(ngx_conf_t *cf)
   }
 
   conf->json = jv_invalid();
+  conf->library_paths = jv_array();
 
   return conf;
 }
@@ -235,6 +267,7 @@ ngx_http_jq_exit_process(ngx_cycle_t *cycle)
   cf = (ngx_http_jq_srv_conf_t *)ctx->srv_conf[ngx_http_jq_module.ctx_index];
   if (cf) {
     jv_free(cf->json);
+    jv_free(cf->library_paths);
   }
 }
 
@@ -407,6 +440,10 @@ ngx_http_jq_handler(ngx_http_request_t *r)
   jq = jq_init();
 
   jq_set_error_cb(jq, ngx_http_jq_error_cb, NULL);
+
+  if (jv_array_length(jv_copy(jscf->library_paths)) > 0) {
+    jq_set_attr(jq, jv_string("JQ_LIBRARY_PATH"), jscf->library_paths);
+  }
 
   if (!jq_compile_args(jq,
                        (const char *)jlcf->filter.data, jv_copy(arguments))) {
