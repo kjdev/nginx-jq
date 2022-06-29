@@ -14,7 +14,6 @@ typedef struct {
 typedef struct {
   ngx_flag_t raw;
   ngx_flag_t sort;
-  ngx_flag_t override_variable;
   ngx_array_t *variables;
   ngx_str_t filter;
 } ngx_http_jq_loc_conf_t;
@@ -83,14 +82,6 @@ static ngx_command_t ngx_http_jq_commands[] = {
     ngx_conf_set_flag_slot,
     NGX_HTTP_LOC_CONF_OFFSET,
     offsetof(ngx_http_jq_loc_conf_t, sort),
-    NULL
-  },
-  {
-    ngx_string("jq_override_variable"),
-    NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_HTTP_LMT_CONF|NGX_CONF_TAKE1,
-    ngx_conf_set_flag_slot,
-    NGX_HTTP_LOC_CONF_OFFSET,
-    offsetof(ngx_http_jq_loc_conf_t, override_variable),
     NULL
   },
   {
@@ -292,7 +283,6 @@ ngx_http_jq_create_loc_conf(ngx_conf_t *cf)
   conf->raw = NGX_CONF_UNSET;
   conf->sort = NGX_CONF_UNSET;
   conf->variables = NGX_CONF_UNSET_PTR;
-  conf->override_variable = NGX_CONF_UNSET;
 
   return conf;
 }
@@ -309,7 +299,6 @@ ngx_http_jq_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
   ngx_conf_merge_value(conf->sort, prev->sort, 0);
 
   ngx_conf_merge_ptr_value(conf->variables, prev->variables, NULL);
-  ngx_conf_merge_value(conf->override_variable, prev->override_variable, 1);
 
   return NGX_CONF_OK;
 }
