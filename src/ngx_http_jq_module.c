@@ -25,9 +25,16 @@ typedef struct {
   ngx_chain_t **last_out;
 } ngx_http_jq_output_t;
 
+typedef struct {
+  ngx_str_t key;
+  ngx_http_complex_value_t value;
+  ngx_uint_t final;
+} ngx_http_jq_variable_t;
+
 static char *ngx_http_jq_conf_set_json_file(ngx_conf_t *, ngx_command_t *, void *);
 static char *ngx_http_jq_conf_set_library_path(ngx_conf_t *, ngx_command_t *, void *);
 static char *ngx_http_jq_conf_set_filter(ngx_conf_t *, ngx_command_t *, void *);
+static char *ngx_http_jq_conf_set_variable(ngx_conf_t *, ngx_command_t *, void *);
 
 static void *ngx_http_jq_create_srv_conf(ngx_conf_t *);
 static void *ngx_http_jq_create_loc_conf(ngx_conf_t *);
@@ -88,8 +95,8 @@ static ngx_command_t ngx_http_jq_commands[] = {
   },
   {
     ngx_string("jq_set_variable"),
-    NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_HTTP_LMT_CONF|NGX_CONF_TAKE2,
-    ngx_conf_set_keyval_slot,
+    NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_HTTP_LMT_CONF|NGX_CONF_TAKE23,
+    ngx_http_jq_conf_set_variable,
     NGX_HTTP_LOC_CONF_OFFSET,
     offsetof(ngx_http_jq_loc_conf_t, variables),
     NULL
@@ -197,6 +204,65 @@ ngx_http_jq_conf_set_filter(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
   return NGX_CONF_OK;
 }
 
+static char *
+ngx_http_jq_conf_set_variable(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+  ngx_http_jq_loc_conf_t *jlcf;
+  ngx_http_jq_variable_t *var;
+  ngx_array_t **variables;
+  ngx_http_compile_complex_value_t ccv;
+  ngx_str_t *value;
+
+  jlcf = conf;
+
+  variables = (ngx_array_t **) ((char *)jlcf + cmd->offset);
+
+  if (*variables == NGX_CONF_UNSET_PTR || *variables == NULL) {
+    *variables = ngx_array_create(cf->pool, 4, sizeof(ngx_http_jq_variable_t));
+    if (*variables == NULL) {
+      return NGX_CONF_ERROR;
+    }
+  }
+
+  var = ngx_array_push(*variables);
+  if (var == NULL) {
+    return NGX_CONF_ERROR;
+  }
+
+  value = cf->args->elts;
+
+  var->key = value[1];
+  var->final = 0;
+
+  if (value[2].len == 0) {
+    ngx_memzero(&var->value, sizeof(ngx_http_complex_value_t));
+  } else {
+    ngx_memzero(&ccv, sizeof(ngx_http_compile_complex_value_t));
+
+    ccv.cf = cf;
+    ccv.value = &value[2];
+    ccv.complex_value = &var->value;
+
+    if (ngx_http_compile_complex_value(&ccv) != NGX_OK) {
+      return NGX_CONF_ERROR;
+    }
+  }
+
+  if (cf->args->nelts == 3) {
+    return NGX_CONF_OK;
+  }
+
+  if (ngx_strcmp(value[3].data, "final") != 0) {
+    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                       "invalid parameter \"%V\"", &value[3]);
+    return NGX_CONF_ERROR;
+  }
+
+  var->final = 1;
+
+  return NGX_CONF_OK;
+}
+
 static void *
 ngx_http_jq_create_srv_conf(ngx_conf_t *cf)
 {
@@ -276,7 +342,8 @@ static void
 ngx_http_jq_conf_arguments(ngx_http_request_t *r,
                            ngx_http_jq_loc_conf_t *cf, jv *arguments)
 {
-  ngx_keyval_t *var;
+  ngx_http_jq_variable_t *var;
+  ngx_str_t value;
   ngx_uint_t i;
   jv key, val;
 
@@ -291,11 +358,16 @@ ngx_http_jq_conf_arguments(ngx_http_request_t *r,
       continue;
     }
 
-    key = jv_string_sized((const char *)var[i].key.data, var[i].key.len);
-    val = jv_string_sized((const char *)var[i].value.data, var[i].value.len);
+    if (ngx_http_complex_value(r, &var[i].value, &value) != NGX_OK) {
+      ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                    "\"%s\" argument is undefined", var[i].key.data);
+      continue;
+    }
 
-    if (!jv_object_has(jv_copy(*arguments), jv_copy(key))
-        || cf->override_variable) {
+    key = jv_string_sized((const char *)var[i].key.data, var[i].key.len);
+    val = jv_string_sized((const char *)value.data, value.len);
+
+    if (!jv_object_has(jv_copy(*arguments), jv_copy(key)) || var[i].final) {
       *arguments = jv_object_set(jv_copy(*arguments),
                                  jv_copy(key), jv_copy(val));
     }
