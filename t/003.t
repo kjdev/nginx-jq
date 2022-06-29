@@ -90,8 +90,7 @@ GET /t?id=2
 --- config
 jq_json_file $TEST_NGINX_JSON_DIR/items.json;
 location = /t {
-  jq_override_variable off;
-  jq_set_variable id 3;
+  jq_set_variable id 3 final;
   jq_filter '.[] | select(.id == ($id | tonumber))';
 }
 --- request
