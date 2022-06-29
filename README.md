@@ -61,6 +61,14 @@ Context: server
 Specify the json file to be filtered for jq.
 
 ```
+Syntax: jq_library_path path;
+Default: -
+Context: server
+```
+
+Specify the library path to be filtered for jq.
+
+```
 Syntax: jq_filter filter;
 Default: jq_filter .;
 Context: location
@@ -85,20 +93,12 @@ Context: location
 Determines whether the object's keys are sorted or not.
 
 ```
-Syntax: jq_set_variable field value;
+Syntax: jq_set_variable field value [final];
 Default: -
 Context: location
 ```
 
 Set the variable `filed` with the value `value`.
-
-```
-Syntax: jq_override_variable on | off;
-Default: jq_override_variable on;
-Context: location
-```
-
-Determines if the variable can be overwritten.
 
 
 Example
@@ -180,10 +180,9 @@ server {
     jq_filter '.items[] | select(.id == ($id | tonumber))';
   }
 
-  # id variable is not overwritten by query parameters
+  # id variable is not overwritten with query parameter
   location = /items/id/2 {
-    jq_override_variable off;
-    jq_set_variable id 2;
+    jq_set_variable id 2 final;
     jq_filter '.items[] | select(.id == ($id | tonumber))';
   }
 
