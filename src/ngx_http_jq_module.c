@@ -294,11 +294,8 @@ ngx_http_jq_conf_arguments(ngx_http_request_t *r,
     key = jv_string_sized((const char *)var[i].key.data, var[i].key.len);
     val = jv_string_sized((const char *)var[i].value.data, var[i].value.len);
 
-    if (jv_object_has(jv_copy(*arguments), jv_copy(key))
-        && !cf->override_variable) {
-      ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                    "\"%s\" argument is duplicate", var[i].key.data);
-    } else {
+    if (!jv_object_has(jv_copy(*arguments), jv_copy(key))
+        || cf->override_variable) {
       *arguments = jv_object_set(jv_copy(*arguments),
                                  jv_copy(key), jv_copy(val));
     }
@@ -333,15 +330,7 @@ ngx_http_jq_query_arguments(ngx_http_request_t *r,
       }
     }
 
-    if (jv_object_has(jv_copy(*arguments), jv_copy(key))
-        && !cf->override_variable) {
-      ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                    "\"%s\" argument is duplicate to query",
-                    jv_string_value(jv_copy(key)));
-    } else {
-      *arguments = jv_object_set(jv_copy(*arguments),
-                                 jv_copy(key), jv_copy(val));
-    }
+    *arguments = jv_object_set(jv_copy(*arguments), jv_copy(key), jv_copy(val));
 
     jv_free(val);
     jv_free(key);
@@ -433,8 +422,8 @@ ngx_http_jq_handler(ngx_http_request_t *r)
 
   // parse jq arguments
   arguments = jv_object();
-  ngx_http_jq_conf_arguments(r, jlcf, &arguments);
   ngx_http_jq_query_arguments(r, jlcf, &arguments);
+  ngx_http_jq_conf_arguments(r, jlcf, &arguments);
 
   // do the jq filter
   jq = jq_init();
