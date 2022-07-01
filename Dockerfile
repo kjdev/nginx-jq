@@ -50,7 +50,11 @@ RUN apk --no-cache upgrade \
  && apk --no-cache add \
       jq \
       nginx \
- && sed -i 's/^user /#user /' /etc/nginx/nginx.conf
+ && sed \
+      -e 's/^user /#user /' \
+      -e 's@^error_log .*$@error_log /dev/stderr warn;@' \
+      -e 's@access_log .*;$@access_log /dev/stdout main;@' \
+      -i /etc/nginx/nginx.conf
 
 COPY --from=builder /usr/lib/nginx/modules/ngx_http_jq_module.so /usr/lib/nginx/modules/ngx_http_jq_module.so
 COPY --from=builder /etc/nginx/modules/jq.conf /etc/nginx/modules/jq.conf
