@@ -366,6 +366,33 @@ ngx_http_jq_conf_arguments(ngx_http_request_t *r,
   }
 }
 
+static jv
+ngx_http_jq_jv_unescaped(ngx_http_request_t *r, jv val)
+{
+  u_char *src, *dst, *out;
+  size_t len;
+
+  if (jv_get_kind(val) != JV_KIND_STRING) {
+    val = jv_dump_string(val, 0);
+  }
+
+  src = (u_char *)jv_string_value(jv_copy(val));
+  len = jv_string_length_bytes(jv_copy(val));
+
+  dst = ngx_pcalloc(r->pool, len);
+  if (dst == NULL) {
+    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                  "Could not allocate memory");
+    return jv_copy(val);
+  }
+
+  out = dst;
+  ngx_unescape_uri(&dst, &src, len, 0);
+  len = dst - out;
+
+  return jv_string_sized((const char *)out, len);
+}
+
 static void
 ngx_http_jq_query_arguments(ngx_http_request_t *r,
                             ngx_http_jq_loc_conf_t *cf, jv *arguments)
@@ -390,6 +417,8 @@ ngx_http_jq_query_arguments(ngx_http_request_t *r,
         val = jv_string_concat(jv_copy(val), jv_array_get(jv_copy(data), j));
       }
     }
+
+    val = ngx_http_jq_jv_unescaped(r, val);
 
     *arguments = jv_object_set(jv_copy(*arguments), jv_copy(key), jv_copy(val));
 
